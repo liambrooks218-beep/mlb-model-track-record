@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model vs. Market — MLB Signal Track Record</title>
+<style>
+  :root{
+    --ink: #171B1E; --paper: #E8E6DC;
+    --hair: rgba(23,27,30,0.14); --hair-strong: rgba(23,27,30,0.28);
+    --muted: rgba(23,27,30,0.62); --accent: #B97A28;
+    --win: #2F6B49; --loss: #A23F2F;
+    --win-bg: rgba(47,107,73,0.12); --loss-bg: rgba(162,63,47,0.12);
+    --pending: rgba(23,27,30,0.5); --card: rgba(23,27,30,0.035);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink: #ECE9DF; --paper: #14181C;
+      --hair: rgba(236,233,223,0.14); --hair-strong: rgba(236,233,223,0.28);
+      --muted: rgba(236,233,223,0.62); --accent: #D99A42;
+      --win: #55B37F; --loss: #E27258;
+      --win-bg: rgba(85,179,127,0.14); --loss-bg: rgba(226,114,88,0.14);
+      --pending: rgba(236,233,223,0.5); --card: rgba(236,233,223,0.045);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink: #ECE9DF; --paper: #14181C;
+    --hair: rgba(236,233,223,0.14); --hair-strong: rgba(236,233,223,0.28);
+    --muted: rgba(236,233,223,0.62); --accent: #D99A42;
+    --win: #55B37F; --loss: #E27258;
+    --win-bg: rgba(85,179,127,0.14); --loss-bg: rgba(226,114,88,0.14);
+    --pending: rgba(236,233,223,0.5); --card: rgba(236,233,223,0.045);
+  }
+  :root[data-theme="light"]{
+    --ink: #171B1E; --paper: #E8E6DC;
+    --hair: rgba(23,27,30,0.14); --hair-strong: rgba(23,27,30,0.28);
+    --muted: rgba(23,27,30,0.62); --accent: #B97A28;
+    --win: #2F6B49; --loss: #A23F2F;
+    --win-bg: rgba(47,107,73,0.12); --loss-bg: rgba(162,63,47,0.12);
+    --pending: rgba(23,27,30,0.5); --card: rgba(23,27,30,0.035);
+  }
+  *{ box-sizing: border-box; }
+  body{ margin:0; }
+  .page{ background: var(--paper); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    min-height: 100vh; padding: 40px 20px 80px; }
+  .wrap{ max-width: 880px; margin: 0 auto; }
+  .eyebrow{ font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .eyebrow .dot{ width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  .eyebrow .asof{ margin-left: auto; color: var(--muted); }
+  h1{ font-family: Iowan Old Style, "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    font-weight: 600; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; letter-spacing: -0.01em;
+    text-wrap: balance; margin: 0 0 14px; }
+  .dek{ font-size: 16px; line-height: 1.55; color: var(--muted); max-width: 62ch; margin: 0 0 36px; }
+  .dek b{ color: var(--ink); font-weight: 600; }
+  .stats{ display: grid; grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--hair-strong); border-bottom: 1px solid var(--hair-strong); margin-bottom: 36px; }
+  .stat{ padding: 18px 16px; border-left: 1px solid var(--hair); }
+  .stat:first-child{ border-left: none; padding-left: 0; }
+  .stat-label{ font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .stat-value{ font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums; font-size: clamp(19px, 3vw, 25px); font-weight: 600; letter-spacing: -0.02em; }
+  .stat-value.up{ color: var(--win); } .stat-value.down{ color: var(--loss); }
+  .stat-sub{ font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .section-label{ font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+  .chart-block{ margin-bottom: 40px; }
+  .chart-frame{ border: 1px solid var(--hair); padding: 18px 18px 10px; }
+  .chart-frame svg{ display:block; width: 100%; height: auto; overflow: visible; }
+  .callout{ border: 1px solid var(--hair-strong); background: var(--card); padding: 22px 24px; margin-bottom: 44px; }
+  .callout-title{ font-family: Iowan Old Style, "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    font-weight: 600; font-size: 18px; margin: 0 0 12px; }
+  .callout ul{ margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.65; color: var(--muted); }
+  .callout li{ margin-bottom: 8px; } .callout li:last-child{ margin-bottom: 0; }
+  .callout li b{ color: var(--ink); font-weight: 600; }
+  .table-scroll{ overflow-x: auto; }
+  table{ width: 100%; border-collapse: collapse; font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; min-width: 780px; }
+  thead th{ text-align: left; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    font-size: 10.5px; color: var(--muted); border-bottom: 1px solid var(--hair-strong); padding: 0 10px 10px 0; white-space: nowrap; }
+  tbody td{ padding: 10px 10px 10px 0; border-bottom: 1px solid var(--hair); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tbody tr:hover td{ background: var(--card); }
+  tbody tr.pending td{ color: var(--pending); }
+  td.num, th.num{ text-align: right; }
+  td.matchup{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; }
+  td.edge.pos{ color: var(--win); } td.edge.neg{ color: var(--loss); }
+  .pill{ display: inline-block; border: 1px solid var(--hair-strong); padding: 2px 7px; font-size: 10.5px; letter-spacing: 0.04em; }
+  .chip{ display: inline-block; padding: 2px 8px; font-size: 10.5px; letter-spacing: 0.04em; font-weight: 600; }
+  .chip.win{ color: var(--win); background: var(--win-bg); }
+  .chip.loss{ color: var(--loss); background: var(--loss-bg); }
+  .chip.pending{ color: var(--pending); border: 1px dashed var(--hair-strong); background: transparent; }
+  tbody tr.locked td{ padding: 14px 10px; white-space: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 13px; color: var(--muted); border-bottom: 1px dashed var(--hair-strong); background: var(--card); }
+  tbody tr.locked a{ color: var(--accent); font-weight: 600; text-decoration: none; }
+  tbody tr.locked a:hover{ text-decoration: underline; }
+  .subscribe{ border: 1px solid var(--hair-strong); padding: 22px 24px; margin-bottom: 44px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; }
+  .subscribe-copy{ max-width: 46ch; }
+  .subscribe-title{ font-family: Iowan Old Style, "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    font-weight: 600; font-size: 18px; margin: 0 0 6px; }
+  .subscribe-sub{ font-size: 13px; color: var(--muted); margin: 0; }
+  .subscribe-actions{ display: flex; flex-wrap: wrap; align-items: center; gap: 12px; flex: none; }
+  .subscribe-cta{ display: inline-block; font: inherit; font-size: 13.5px; font-weight: 600; padding: 11px 18px;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--paper); cursor: pointer;
+    text-decoration: none; white-space: nowrap; }
+  .subscribe-cta:hover{ opacity: 0.9; }
+  .subscribe-cta:focus-visible{ outline: 2px solid var(--ink); outline-offset: 2px; }
+  .subscribe-cta.disabled{ background: transparent; border: 1px dashed var(--hair-strong); color: var(--muted); cursor: not-allowed; }
+  .subscribe-form{ display: flex; gap: 8px; }
+  .subscribe-form input[type="email"]{ font: inherit; font-size: 13px; padding: 10px 12px;
+    border: 1px solid var(--hair-strong); background: transparent; color: var(--ink); min-width: 200px; }
+  .subscribe-form input[type="email"]:focus{ outline: 2px solid var(--accent); outline-offset: 1px; }
+  .subscribe-form button{ font: inherit; font-size: 13px; font-weight: 600; padding: 10px 14px;
+    border: 1px solid var(--hair-strong); background: transparent; color: var(--ink); cursor: pointer; }
+  .subscribe-form button:hover{ background: var(--card); }
+  .subscribe-form button:focus-visible{ outline: 2px solid var(--ink); outline-offset: 2px; }
+  .subscribe-note{ width: 100%; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  footer{ margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--hair); font-size: 12px; line-height: 1.6; color: var(--muted); max-width: 68ch; }
+  @media (max-width: 640px){
+    .stats{ grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(2){ border-left: 1px solid var(--hair); }
+    .stat:nth-child(3){ border-left: none; padding-left: 0; border-top: 1px solid var(--hair); margin-top: 14px; padding-top: 14px;}
+    .stat:nth-child(4){ border-top: 1px solid var(--hair); margin-top: 14px; padding-top: 14px;}
+  }
+  @media (prefers-reduced-motion: reduce){ *{ transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="wrap">
+    <div class="eyebrow">
+      <span class="dot"></span>
+      QUANTITATIVE SPORTS SIGNAL &middot; PAPER-TRADING LEDGER
+      <span class="asof">generated 2026-08-11 02:25 UTC</span>
+    </div>
+    <h1>Model vs. Market</h1>
+    <p class="dek">
+      A calibrated win-probability model for MLB moneylines, run against live prediction-market
+      prices. Every signal below is logged from the real paper-trading ledger before first pitch
+      and resolved after the final score — this page regenerates daily from that same log,
+      nothing is reordered or backtested after the fact.
+    </p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Record</div>
+        <div class="stat-value">10&ndash;7</div>
+        <div class="stat-sub">58.8% of resolved signals correct</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Paper bankroll</div>
+        <div class="stat-value up">$1,072.12</div>
+        <div class="stat-sub">+$72.12 from $1,000 start</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Net change</div>
+        <div class="stat-value up">+7.2%</div>
+        <div class="stat-sub">quarter-Kelly sizing, 5% cap</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Open signals</div>
+        <div class="stat-value">3</div>
+        <div class="stat-sub"><a href="#subscribe">Live for subscribers &rarr;</a></div>
+      </div>
+    </div>
+    <div class="chart-block">
+      <div class="section-label">Bankroll, trade by trade</div>
+      <div class="chart-frame"><svg viewBox="0 0 580 150" preserveAspectRatio="none" role="img" aria-label="Paper bankroll line chart">
+          <line x1="10" y1="114.9" x2="570" y2="114.9" stroke="var(--hair)" stroke-width="1" stroke-dasharray="2 3" /><text x="574" y="110.9" text-anchor="end" font-family="ui-monospace, monospace" font-size="9" fill="var(--muted)">$1,000</text>
+          <polygon points="10.0,140 10.0,114.9 42.9,134.5 75.9,116.9 108.8,97.1 141.8,103.3 174.7,116.9 207.6,129.2 240.6,140.0 273.5,132.1 306.5,110.4 339.4,91.7 372.4,69.2 405.3,77.3 438.2,53.9 471.2,33.5 504.1,24.2 537.1,10.0 570.0,18.9 570.0,140" fill="var(--accent)" opacity="0.12" />
+          <polyline points="10.0,114.9 42.9,134.5 75.9,116.9 108.8,97.1 141.8,103.3 174.7,116.9 207.6,129.2 240.6,140.0 273.5,132.1 306.5,110.4 339.4,91.7 372.4,69.2 405.3,77.3 438.2,53.9 471.2,33.5 504.1,24.2 537.1,10.0 570.0,18.9" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          <circle cx="570.0" cy="18.9" r="3.5" fill="var(--accent)" />
+        </svg></div>
+    </div>
+    <div class="callout">
+      <p class="callout-title">Read this before the ledger below</p>
+      <ul>
+        <li><b>This is paper trading, not real money.</b> No capital is actually at risk in the results shown here.</li>
+        <li><b>17 resolved trades is a small sample.</b> Nowhere near enough to confirm an edge on its own — it's a running record, not proof.</li>
+        <li><b>The historical backtest behind this model is mixed, not clean.</b> Across 9 real MLB seasons it beat the market's own pricing (Brier score) in only 3 of 8 tuning seasons, and the one season held out and never tuned against (2021) came back a statistical wash.</li>
+        <li>Net-of-cost returns were positive in most tested seasons but lost money in three, one by double digits — the edge, if real, is small and inconsistent, not a sure thing.</li>
+        <li>This is a technical/statistical tool, not financial advice.</li>
+      </ul>
+    </div>
+    <div class="subscribe" id="subscribe">
+      <div class="subscribe-copy">
+        <p class="subscribe-title">Get today's signal before first pitch</p>
+        <p class="subscribe-sub">Resolved picks are free forever, above. A subscription unlocks each
+        day's signal while it's still actionable, before the game starts.</p>
+      </div>
+      <div class="subscribe-actions">
+        <a class="subscribe-cta" href="https://buy.stripe.com/test_00wcN7csffblfGScAu4gg00">Subscribe &mdash; $9/mo</a>
+        <form class="subscribe-form" action="#" method="post" onsubmit="return false;">
+          <input type="email" name="email" placeholder="not ready to pay? get notified free" required aria-label="Email address">
+          <button type="submit">Notify me</button>
+        </form>
+        <span class="subscribe-note">Email signup isn't wired up yet &mdash; form has no live backend.</span>
+      </div>
+    </div>
+    <div class="section-label">Full ledger — every signal logged, in order</div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Matchup</th><th class="num">Model P(home)</th><th class="num">Market P(home)</th>
+            <th class="num">Edge</th><th>Signal</th><th class="num">Entry</th><th class="num">Stake</th>
+            <th>Result</th><th class="num">P&amp;L</th><th class="num">Bankroll</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+          <td>Aug 7</td>
+          <td class="matchup">NYM @ PIT</td>
+          <td class="num">60.2%</td>
+          <td class="num">54.5%</td>
+          <td class="num edge pos">+5.7%</td>
+          <td><span class="pill">BUY_HOME</span></td>
+          <td class="num">0.555</td>
+          <td class="num">$14.73</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$14.73</td>
+          <td class="num">$985.27</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">TOR @ PHI</td>
+          <td class="num">60.2%</td>
+          <td class="num">66.5%</td>
+          <td class="num edge neg">&minus;6.3%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.345</td>
+          <td class="num">$6.95</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$13.19</td>
+          <td class="num">$998.46</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">CIN @ WSH</td>
+          <td class="num">59.5%</td>
+          <td class="num">52.5%</td>
+          <td class="num edge pos">+7.0%</td>
+          <td><span class="pill">BUY_HOME</span></td>
+          <td class="num">0.535</td>
+          <td class="num">$17.16</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$14.91</td>
+          <td class="num">$1,013.37</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">ATL @ NYY</td>
+          <td class="num">53.2%</td>
+          <td class="num">56.5%</td>
+          <td class="num edge neg">&minus;3.3%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.445</td>
+          <td class="num">$4.69</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$4.69</td>
+          <td class="num">$1,008.68</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">ATH @ BOS</td>
+          <td class="num">60.2%</td>
+          <td class="num">70.5%</td>
+          <td class="num edge neg">&minus;10.3%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.305</td>
+          <td class="num">$10.18</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$10.18</td>
+          <td class="num">$998.50</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">CLE @ CWS</td>
+          <td class="num">49.1%</td>
+          <td class="num">43.5%</td>
+          <td class="num edge pos">+5.6%</td>
+          <td><span class="pill">BUY_HOME</span></td>
+          <td class="num">0.445</td>
+          <td class="num">$9.28</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$9.28</td>
+          <td class="num">$989.22</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">COL @ STL</td>
+          <td class="num">54.8%</td>
+          <td class="num">60.5%</td>
+          <td class="num edge neg">&minus;5.7%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.405</td>
+          <td class="num">$8.08</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$8.08</td>
+          <td class="num">$981.14</td>
+        </tr>
+<tr>
+          <td>Aug 7</td>
+          <td class="matchup">HOU @ SD</td>
+          <td class="num">49.1%</td>
+          <td class="num">52.5%</td>
+          <td class="num edge neg">&minus;3.4%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.485</td>
+          <td class="num">$5.58</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$5.93</td>
+          <td class="num">$987.07</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">ATH @ BOS</td>
+          <td class="num">59.5%</td>
+          <td class="num">67.0%</td>
+          <td class="num edge neg">&minus;7.5%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.340</td>
+          <td class="num">$8.42</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$16.34</td>
+          <td class="num">$1,003.41</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">NYM @ PIT</td>
+          <td class="num">60.2%</td>
+          <td class="num">53.5%</td>
+          <td class="num edge pos">+6.7%</td>
+          <td><span class="pill">BUY_HOME</span></td>
+          <td class="num">0.545</td>
+          <td class="num">$16.75</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$13.98</td>
+          <td class="num">$1,017.39</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">CIN @ WSH</td>
+          <td class="num">52.4%</td>
+          <td class="num">44.5%</td>
+          <td class="num edge pos">+7.9%</td>
+          <td><span class="pill">BUY_HOME</span></td>
+          <td class="num">0.455</td>
+          <td class="num">$14.15</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$16.95</td>
+          <td class="num">$1,034.34</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">HOU @ SD</td>
+          <td class="num">48.9%</td>
+          <td class="num">52.5%</td>
+          <td class="num edge neg">&minus;3.6%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.485</td>
+          <td class="num">$6.10</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$6.10</td>
+          <td class="num">$1,028.24</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">COL @ STL</td>
+          <td class="num">50.4%</td>
+          <td class="num">58.5%</td>
+          <td class="num edge neg">&minus;8.1%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.425</td>
+          <td class="num">$12.98</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$17.56</td>
+          <td class="num">$1,045.80</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">CLE @ CWS</td>
+          <td class="num">51.7%</td>
+          <td class="num">44.5%</td>
+          <td class="num edge pos">+7.2%</td>
+          <td><span class="pill">BUY_HOME</span></td>
+          <td class="num">0.455</td>
+          <td class="num">$12.82</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$15.36</td>
+          <td class="num">$1,061.16</td>
+        </tr>
+<tr>
+          <td>Aug 8</td>
+          <td class="matchup">LAD @ AZ</td>
+          <td class="num">31.7%</td>
+          <td class="num">35.5%</td>
+          <td class="num edge neg">&minus;3.8%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.655</td>
+          <td class="num">$13.25</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$6.98</td>
+          <td class="num">$1,068.13</td>
+        </tr>
+<tr>
+          <td>Aug 9</td>
+          <td class="matchup">ATL @ NYY</td>
+          <td class="num">52.4%</td>
+          <td class="num">57.5%</td>
+          <td class="num edge neg">&minus;5.1%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.435</td>
+          <td class="num">$8.20</td>
+          <td><span class="chip win">WIN</span></td>
+          <td class="num">+$10.65</td>
+          <td class="num">$1,078.79</td>
+        </tr>
+<tr>
+          <td>Aug 9</td>
+          <td class="matchup">HOU @ SD</td>
+          <td class="num">48.9%</td>
+          <td class="num">52.5%</td>
+          <td class="num edge neg">&minus;3.6%</td>
+          <td><span class="pill">BUY_AWAY</span></td>
+          <td class="num">0.485</td>
+          <td class="num">$6.67</td>
+          <td><span class="chip loss">LOSS</span></td>
+          <td class="num">&minus;$6.67</td>
+          <td class="num">$1,072.12</td>
+        </tr>
+<tr class="locked">
+          <td colspan="11">&#128274; 3 signals live right now, before first pitch &mdash;
+          visible to subscribers only. Unlocks here free once the game resolves.
+          <a href="#subscribe">Get it early &rarr;</a></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    <footer>
+      Signal rule: flag any pregame moneyline where the model's win probability disagrees with
+      the market's implied probability by more than 3 percentage points. Sizing: quarter-Kelly,
+      capped at 5% of bankroll per trade. Market prices sourced live from Polymarket; results
+      sourced from official game outcomes. Regenerated automatically each morning by
+      generate_track_record.py after the day's picks resolve.
+    </footer>
+  </div>
+</div>
+</body>
+</html>
